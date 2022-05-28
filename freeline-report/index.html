@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Optimization of Freeskate Motion</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+  <link rel="stylesheet" type="text/css" href="freeline.css">
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+<div div style="margin: auto;" class="main-page-box">
+  <h1>Optimization of Freeskate Motion</h1>
+  <h2 class="subtitle">Amani Rune Maina-Kilaas</h2>
+  <video muted autoplay loop playsinline width=100% style="border: none;">
+    <source src="./media/freeline1.mp4" type="video/mp4">
+  </video>
+  <h3>Introduction</h3>
+  <p>
+    Freeline skating (also known as freeskating) is a form of skating where each foot stands on an independent skate, allowing a greater degree of freedom in the rider's motion. Instead of pushing off the ground to gain speed like with a skateboard, riders perform an action known as "pumping," where the skates are oppositely pushed away from and pulled back towards the body. The action involves an outward and inward force exerted by the legs and a clockwise and counterclockwise torque exerted by the ankles. This project utilizes a simplified simulation to investigate the optimal force patterns in terms of square waves and aims to recreate the pumping motion through optimization.
+  </p>
+
+  <h3>Methods</h3>
+  <h4>Assumptions</h4>
+
+  <p style="margin-bottom: 0;">
+    With each level of realism, the physics of the simulation becomes increasingly difficult to model. As such, we make several simplifying assumptions to ease with the calculations.
+  </p>
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    &bull; <em>The rider's weight is centered over the two skates.</em> This means that the foot in front of the body is as far forwards as the foot behind the body is backwards, and that the downward force on each skate is the same. <br><br>
+    &bull; <em>The rider stands upright with approximately straight legs.</em> This allows us to assume an isoceles triangle formed by the skates and legs and easily compute outward forces. <br><br>
+    &bull; <em>The skates are approximately flat (parallel to the ground).</em> This simplifies the directions and interactions of forces on the skates and model the physics more closely to our intuitions. <br><br> 
+    &bull; <em>Rolling skates will continue to roll indefinitely.</em> While not as necessary a simplification, this again reduces the number of forces to consider.
+  </p>
+  <p>
+    While a rider would often violate the first three assumptions, they are generally met for a relaxed, upright, moderately-paced pumping motion from a comfortable rider. Thus it is not unrealistic to make these assumptions and they should be able to capture the fundamental physics of the situation. The final assumption is minor as skates with well-kept bearings will roll freely for quite some time before coming to a stop.
+  </p>
+
+  <h4>Motion</h4>
+
+  <div>
+    <div style="display:inline-block;">
+      <img src="./media/skate_diagram1.jpg" alt="skate force diagram 1" class="results-graph">
+      <p style="margin-bottom: 0; text-align: center;">(A)</p>
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/skate_diagram2.jpg" alt="skate force diagram 2" class="results-graph">
+      <p style="margin-bottom: 0; text-align: center;">(B)</p>
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/skate_diagram3.jpg" alt="skate force diagram 3" class="results-graph">
+      <p style="margin-bottom: 0; text-align: center;">(C)</p>
+    </div>
+    <p style="text-align: center;">Figure 1: Force diagrams from the (A) side and top down views, with (B) demonstrating static friction and (C) kinetic friction.</p>
+  </div>
+  <p>The equations to model the simulation were derived from the force diagrams in Figure 1. In (A), we of course have a force of gravity, \(F_g\), and corresponding normal force, \(F_N\). However, since the downwards force is exerted through the leg, this necessitates a required force, \(F_R\), and therefore an outward component \(F_{R, \ out}\). Imagine standing on a slippery floor with your legs slightly apart. They would continue to spread outwards without any effort on your part, simply due to gravity &mdash; this is the force that \(F_{R, \ out}\) signifies. Since it does not require any work from the rider, this is not included as part of the exerted outward force, \(F\). Lastly we have the friction force, \(F_{\mu}\). In (B) we show how this outward force results in a friction force perpendicular to the skate. In (C) we show how when the skate is moving in a different direction from the skate (a.k.a. slipping) the friction force is now kinetic and may point in the same direction as the outward force. In both cases, we have that: 
+  \begin{align*} 
+  F_x &= F_{\mu, x}, \\ \\
+  F_y &= F + F_{R, \ out} + F_{\mu, y}
+  \end{align*}
+  We use the forces \(F_x\) and \(F_y\) to determine the acceleration of the skates and update the velocity and position accordingly each time step. Note that acceleration is the lowest level that we consider and so it changes instantly. We also do this process for the torque, however we do not consider any combating forces and so the motion is straightforward in derivation.
+  </p>
+
+  <h4>Objective Function</h4>
+  <p>Since the desired pumping motion is periodic, it only makes sense for the input forces to be periodic as well. We work with the simplest case by modeling the exerted force as a sum of two square waves, each in the form:
+  $$F(t) = \begin{cases}a &\;\;\text{if}\;\; b(t+c)\; \%\; 10 < 5\\ -a &\;\;\text{otherwise}\end{cases}$$
+  We use two waves as opposed to simply one because this allows for the force pushing outwards and the force pulling inwards to differ, which is important since one is aided by gravity while the other fights against it. We don't use more waves as more variables increases the difficulty of optimization. <br><br>
+  Our objective function takes in 26 inputs. Each wave has an amplitude, frequency, and offset (a, b, and c), and we have two waves for each foot's outward force and each foot's torque, yielding 24 inputs. The inputs are ordered as [amplitude, frequency, offset] for the left foot's first and second force wave, then the right foot's first and second force wave, the left foot's first and second torque wave, and then the right foot's first and second torque wave. The last two inputs are the starting angles for the skates, left and then right. <br><br>
+  Given these inputs, the objective function creates a pair of skates and applies force to them each time step as dictated by the waves. However, due to Newton's Third Law, unless the rider swings their weight (violating one of our simplifying assumptions), the forces exerted on the two skates must be equal and opposite. Thus, if the forces are in the same direction, we set them to zero, and if they are opposite but of inequal magnitudes, we limit the greater to the lesser amount. <br><br>
+  The objective function then evaluates the performance of the simulation and assigns a score. At each time step, we reward points (or penalty) according to the x-position of the skates. Thus it is rewarding to spend more time as far in the positive x-direction as possible and penalizing to spend time in the negative x-direction. We deduct points for having the skates further apart from each other, with a higher penalty earlier on in the simulation so that it encourages keeping the skates together for as long as possible. If the skates become far enough apart that it is physically impossible, the simulation is stopped prematurely and a larger penalty is applied. We also deduct points while the skates are rotated more than \(\frac{\pi}{2}\) radians in either direction. Lastly, we deduct points if the two skates have overlapping positions, but do allow the simulation to continue running. We then take the negative of the score, as our optimization methods are for minimization.<br><br>
+  It is important to note that our objective function is rather sensitive to the input parameters due to the nature of the simulation, and thus the function is not smooth and very difficult to globally (or locally) minimize.
+  </p>
+
+  <h3>Results</h3>
+
+  <h4>Differential Evolution</h4>
+
+  <p style="margin-bottom: 0;">
+    We first attempt to optimize the parameters with a differential evolution algorithm using 3000 iterations (three times the default). Differential evolution starts with a population of evenly-spaced candidate solutions and evolves them. This method generally requires lots of function evaluations but is good for global optimization of non-smooth functions since it is stochastic and does not involve the gradient, which means it continues to work well on discontinuous functions. We provide the bounds (0, 20) for amplitudes and frequencies, (0, 10) for the offsets, and (\(-\pi\), \(\pi\)) for the skate angles. However, the solver unfortunately noted that optimization of a global minimum was unsuccessful, and returned the following solution. Note that the blue lines represent the total outward force and the red lines represent the friction force.
+  </p>
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/DE.mp4" type="video/mp4">
+    </video> <br><br>
+    Solution = [18.88587495, 10.26429164, 2.60108054, 15.71480283, 15.69139988, 6.52516471, 11.57625037, 3.16885366, 4.45817435, 16.19651363, 14.45874594, 5.2960507, 14.23117587, 14.21061939, 3.29990781, 1.02240769, 8.84718395, 2.32413842, 2.47482697, 18.93488249, 7.98292209, 4.28218174, 15.21646312, 6.79852941, 0.8396498, -0.71947609]
+    <br><br>
+    Objective Function = -355.431203788231
+  </p>
+  <p>
+    In this solution, the skates separate but never pull back, which limits the ability to gain speed. However, through small movements, the skates are able to continue moving forward and thus perform fairly well. At the end, the skates drift too far and the simulation ends prematurely. This pattern of motion is clearly not sustainable for long.
+    <br><br>
+    To better understand the nature of our objective function around a particular solution or guess, we can take cross-sections by varying one parameter over the bounds and holding the rest at the given values. This process for the above solution yields the graphs shown in Figure 2. 
+  </p>
+
+  <div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param1.png" alt="param 1 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param2.png" alt="param 2 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param3.png" alt="param 3 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param4.png" alt="param 4 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param5.png" alt="param 5 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param6.png" alt="param 6 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param7.png" alt="param 7 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param8.png" alt="param 8 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param9.png" alt="param 9 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param10.png" alt="param 10 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param11.png" alt="param 11 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param12.png" alt="param 12 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param13.png" alt="param 13 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param14.png" alt="param 14 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param15.png" alt="param 15 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param16.png" alt="param 16 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param17.png" alt="param 17 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param18.png" alt="param 18 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param19.png" alt="param 19 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param20.png" alt="param 20 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param21.png" alt="param 21 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param22.png" alt="param 22 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param23.png" alt="param 23 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param24.png" alt="param 24 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param25.png" alt="param 25 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DE_cross/param26.png" alt="param 26 graph" class="cross-graph">
+    </div>
+    <p style="text-align: center; margin-left: 3em; margin-right: 3em;">Figure 2: Cross-sections of the objective function at the differential evolution solution.</p>
+  </div>
+
+  <p style="margin-bottom: 0;">
+    Figure 2 highlights the chaotic nature of our objective function. In some cases we have extremely poor values that deviate from a cleaner trend or underlying structure (for example 1, 10, 19, 22). We also observe periodic nature of the offset parameters. It is also interesting that many of the best parameter values come immediately before or after one of the worst values, demonstrating how delicate the objective function is and why it may be difficult to optimize.
+    <br><br>
+    However, these cross-sections provide us with an additional tool to use in optimization. We can use this cross-section strategy to settle guesses on local minima by dividing each bound into 500 equally spaced points and iteratively brute-forcing the global minimum of each parameter's cross-section, improving the solution one parameter at a time until there is no change. This means that every parameter value would be at the global minimum in its own cross-section graph. This "refinement" process is outlined in Figure 3 below.
+  </p><br><br>
+  <div>
+    <div style="display:inline-block;">
+      <img src="./media/refinement.png" alt="skate force diagram 1" style="width: 60%;">
+    </div>
+    <p style="text-align: justify; text-justify: interword; margin-left: 3em; margin-right: 3em;">Figure 3: The refinement process. Starting at an initial guess indicated by point 0 at (3, -1), we look at the global minimum of the \(x_1\)-cross-section and update our solution to point 1, given by (0, -1). We next look at the global minimum of the \(x_2\)-cross-section and update the solution to point 2, given by (0, -2), which is a local minimum. If it were not, we would repeat this process with point 2 as the new initial guess. Note that this process guides a solution to a local minimum, but not necessarily a global minimum. It also does not guarantee a local minimum close to the initial guess, only that it is a minimum lower than or equal to the initial guess.</p>
+  </div>
+  <p>
+    It took six iterations through this process to refine the differential evolution solution, yielding the solution below.
+  </p>
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/DErefined.mp4" type="video/mp4">
+    </video> <br><br>
+    Solution = [19.95991984, 18.59719439,  9.57915832, 14.62925852,  3.20641283,  9.61923848, 15.27054108, 19.07815631, 5.01002004, 18.03607214, 15.47094188, 1.04208417, 14.42885772, 14.21061939, 3.29990781, 1.00200401, 8.84718395, 2.32413842, 3.12625251, 18.93488249, 1.06212425, 4.32865731, 13.06613226, 6.79358717, 0.86252143, -0.71947609]
+    <br><br>
+    Objective Function = -673.2402784932575
+  </p>
+  <p>
+    This solution is clearly similar to and improved from the previous. It retains similar behavior at the beginning but then brings the skates back together, which is what the original version lacked. We see this results in slightly more speed, and the simulation ends before they eventually separate.
+  </p>
+
+  <h4>Basin-Hopping</h4>
+  <p>We next attempt to optimize the parameters using Basin-Hopping with 300 iterations (again three times the default). This method is again a stochastic method, but meant for smoother functions. However, it is considered useful for functions where the minima can be separated by large barriers, which is the case with our objective function. Instead of bounds, we provide the initial guess given below, which yields a very good pumping motion at the beginning but then lets the skates move out of sync. We hope that this algorithm will fine tune the parameters and fix that behavior, as well as perhaps increase speed. The initial guess is shown below.</p>
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/initguess.mp4" type="video/mp4">
+    </video> <br><br>
+    Guess = [4, 2, 1.25, 3, 2, 2.5, 4, 2, 3.75, 3, 2, 5, 5, 2, 3.75, 0, 0, 0, 5, 2, 1.25, 0, 0, 0, \(\frac{\pi}{4}\), \(-\frac{\pi}{4}\)]
+    <br><br>
+    Objective Function = -557.800254224105
+  </p>
+  <p>
+    We then run the basin-hopping solver. Like with the differential evolution, this basin-hopping solver once again noted that global minimization was not achieved. However, it appears the optimizer was not able to make any improvements to the previous solution as it returned the same parameters. We can, however, still view the cross-sections.
+  </p>
+  <div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param1.png" alt="param 1 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param2.png" alt="param 2 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param3.png" alt="param 3 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param4.png" alt="param 4 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param5.png" alt="param 5 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param6.png" alt="param 6 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param7.png" alt="param 7 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param8.png" alt="param 8 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param9.png" alt="param 9 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param10.png" alt="param 10 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param11.png" alt="param 11 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param12.png" alt="param 12 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param13.png" alt="param 13 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param14.png" alt="param 14 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param15.png" alt="param 15 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param16.png" alt="param 16 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param17.png" alt="param 17 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param18.png" alt="param 18 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param19.png" alt="param 19 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param20.png" alt="param 20 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param21.png" alt="param 21 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param22.png" alt="param 22 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param23.png" alt="param 23 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param24.png" alt="param 24 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param25.png" alt="param 25 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/BH_cross/param26.png" alt="param 26 graph" class="cross-graph">
+    </div>
+    <p style="text-align: center; margin-left: 3em; margin-right: 3em;">Figure 4: Cross-sections of the objective function at the basin-hopping solution.</p>
+  </div>
+  <p>
+    It is interesting to note that this time the cross-sections are generally smoother than for the differential evolution solution. Perhaps the objective function is less sensitive around more "true" solutions. Note that the flat sections in graphs 1, 4, 7, and 10 are likely because the forces exerted on each skate must be equal and thus larger amplitudes are capped by the others if changed on their own. The flat sections in 17, 18, 23, and 24 are because the amplitude of those waves is set to zero, and so the frequency and offset have no effect. Utilizing our refinement process like before, we get the following new solution after eight iterations:
+  </p>
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/BHrefined.mp4" type="video/mp4">
+    </video> <br><br>
+    Solution = [6.93386774, 2.20440882, 9.87975952, 4.12825651, 2., 7.49498998, 19.91983968, 2.08416834, 8.97795591, 19.87975952, 2.04408818, 9.29859719, 4.60921844, 2.00400802, 3.75, 0., 0., 0., 4.76953908, 2.00400802, 6.25250501, 0., 0., 0., 0.79956366, -0.78539816]
+     <br><br>
+    Objective Function = -883.9119962174519
+  </p>
+  <p>
+    This solution is not as consistent as the original, as we see the curves drift apart much more quickly. However, it is faster than than the initial guess and travels further because the pumps are more forceful. For future note, it may be better to extend the length of the simulation so that consistency in motion becomes more important, but this also would extend the time required for optimization.
+  </p>
+
+  <h4>Basin-Hopping on Differential Evolution</h4>
+  <p>Instead of using the initial guess from before, we now run the basin-hopping solver using the solution from the differential evolution solver. Again, the solver fails to globally minimize but returns the following solution:</p>
+
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/DEBH.mp4" type="video/mp4">
+    </video> <br><br>
+    Solution = [18.88657195, 10.26429164, 2.60108054, 15.71410582, 15.69139988, 6.52516471, 11.56486574, 3.16885366, 4.45817435, 16.19310854, 14.45874594, 5.2960507, 14.23202102, 14.21061939, 3.29990781, 1.01952037, 8.84718395, 2.32413842, 2.47704203, 18.93488249, 7.98292209, 4.28303318, 15.21646312, 6.79852941, 0.80933205, -0.67726907]
+     <br><br>
+    Objective Function = -374.9970758637292
+  </p>
+  <p>
+    This solution is only a slight improvement from the previous version. The basin-hopping algorithm was able to fine tune the differential evolution solution to keep the skates closer together, but did not result in a much better motion or much lower objective function. This solution yields the following cross sections:
+  </p>
+
+  <div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param1.png" alt="param 1 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param2.png" alt="param 2 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param3.png" alt="param 3 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param4.png" alt="param 4 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param5.png" alt="param 5 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param6.png" alt="param 6 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param7.png" alt="param 7 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param8.png" alt="param 8 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param9.png" alt="param 9 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param10.png" alt="param 10 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param11.png" alt="param 11 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param12.png" alt="param 12 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param13.png" alt="param 13 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param14.png" alt="param 14 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param15.png" alt="param 15 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param16.png" alt="param 16 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param17.png" alt="param 17 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param18.png" alt="param 18 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param19.png" alt="param 19 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param20.png" alt="param 20 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param21.png" alt="param 21 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param22.png" alt="param 22 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param23.png" alt="param 23 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param24.png" alt="param 24 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param25.png" alt="param 25 graph" class="cross-graph">
+    </div>
+    <div style="display:inline-block;">
+      <img src="./media/DEBH_cross/param26.png" alt="param 26 graph" class="cross-graph">
+    </div>
+    <p style="text-align: center; margin-left: 3em; margin-right: 3em;">Figure 5: Cross-sections of the objective function at the basin-hopping on differential evolution solution.</p>
+  </div>
+
+  <p>
+    We note that these cross sections generally look similar to those for the differential evolution. We then run our refinement process and obtain the following locally-minimum solution after four iterations:
+  </p>
+
+  <p style="margin-left: 3em; margin-right: 3em; margin-bottom: 0;">
+    <video muted autoplay loop playsinline width=100%>
+      <source src="./media/DEBHrefined.mp4" type="video/mp4">
+    </video> <br><br>
+    Solution = [19.91983968, 18.31663327, 7.6753507, 18.87775551, 15.59118236, 9.75951904, 11.82364729, 3.28657315, 7.7755511, 19.95991984, 14.45874594, 3.92785571, 14.26853707, 14.21061939, 3.29990781, 1.01952037, 8.84718395, 7.9759519, 2.47704203, 18.93488249, 7.98292209, 4.40881764, 15.21646312, 6.79852941, 0.80933205, -0.68623968]
+     <br><br>
+    Objective Function = -660.0490011406198
+  </p>
+  <p>
+    Like when run on the differential evolution solution, the refinement process guided the solution closer to actual pumping by bringing the skates back in together and even crossing them. However the success does not last and the skates turn upwards, together but in the wrong direction. 
+  </p>
+
+  <h3>Conclusion</h3>
+  <p>
+    Unfortunately none of the optimization algorithms resulted in a good pumping motion for the skates nor an impressive objective function score. The best in terms of objective function was the refined initial guess, and the best in terms of motion was the initial guess. In general, the basin-hopping algorithm was not good at improving upon the provided guess. Some parameters had to be changed in unison for any benefit to appear, and so this may have given the algorithm difficulty. This is also one flaw of the refinement algorithm and part of why we can only hope for a local minimum. Some of the sensitivity in our objective function is inherent to the physical nature of the simulation, but it is true that the rewards and penalties could be refined to yield better results. There are also limitations implied by our simplifications in the physics and the force functions, but it appears they are not significant since our initial guess shows that a decent motion can in fact be created. Future work could tackle this problem with reinforcement learning instead of parameter optimization, giving full control of the forces to an agent and training it to pump smoothly.
+  </p>
+  <video muted autoplay loop playsinline width=100% style="border: none;">
+    <source src="./media/freeline2.mp4" type="video/mp4">
+  </video>
+  <p></p>
+
+</body>
+</html>
